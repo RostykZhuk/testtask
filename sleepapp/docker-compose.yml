@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:13-alpine
+    command: postgres -c listen_addresses='*'
+    volumes:
+      - ./db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    expose:
+      - "5432"
+    ports:
+      - "5432:5432"
+    networks:
+     - djangonetwork
+
+  sleep_api:
+    build:
+      context: ./sleepapp/
+    restart: on-failure
+    command: >
+      sh -c "python sleepapp/manage.py migrate &&
+             python sleepapp/manage.py runserver 0.0.0.0:8000"
+
+    volumes:
+      - .:/code
+    ports:
+      - 8000:8000
+    environment:
+      DB_HOST: db
+      POSTGRES_DB: postgres
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    depends_on:
+      - db
+
+    networks:
+     - djangonetwork
+
+  client:
+    build:
+      context: ./sleep-web-app/
+    env_file: ./sleep-web-app/.env
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./sleep-web-app/:/app
+      - /sleep-web-app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - sleep_api
+
+networks:
+    djangonetwork:
+        driver: bridge
